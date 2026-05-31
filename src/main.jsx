@@ -2,55 +2,59 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './styles.css'
 
-const GAME_WIDTH = 960
-const GROUND_Y = 415
-const PLAYER = { x: 120, width: 48, height: 62 }
-const GRAVITY = 0.86
-const JUMP_FORCE = -16.8
-const SLIDE_DURATION = 620
-const OBSTACLE_SPEED = 6.1
-const SPAWN_MIN = 760
-const SPAWN_RANDOM = 720
-const SWIPE_THRESHOLD = 46
-const TAP_THRESHOLD = 14
-const TAP_DURATION = 260
+const STAGE_HEIGHT = 520
+const PLAYER = { y: 382, width: 52, height: 66 }
+const ENTITY_START_Y = -120
+const ENTITY_END_Y = STAGE_HEIGHT + 120
+const OBSTACLE_SPEED = 4.8
+const SPAWN_MIN = 520
+const SPAWN_RANDOM = 460
+const SWIPE_THRESHOLD = 42
 const LANES = [
-  { label: 'gauche', offset: -54, scale: 0.92 },
-  { label: 'centre', offset: 0, scale: 1 },
-  { label: 'droite', offset: 54, scale: 1.08 },
+  { label: 'gauche', left: 27 },
+  { label: 'centre', left: 50 },
+  { label: 'droite', left: 73 },
 ]
-const COLORS = ['#00e5ff', '#9b5cff', '#ff4ecd', '#7cff6b', '#ffd166']
+const OBSTACLE_VARIANTS = [
+  { width: 62, height: 74, label: 'bloc' },
+  { width: 74, height: 54, label: 'barrière' },
+  { width: 52, height: 92, label: 'tour' },
+]
 
-const randomBetween = (min, max) => min + Math.random() * (max - min)
 const clampLane = (laneIndex) => Math.max(0, Math.min(LANES.length - 1, laneIndex))
 
-function createObstacle(score) {
-  const flying = Math.random() > 0.72 && score > 120
-  const width = randomBetween(34, 70)
-  const height = flying ? randomBetween(34, 56) : randomBetween(54, 118)
+function createEntity(score) {
   const laneIndex = Math.floor(Math.random() * LANES.length)
-  const laneGround = GROUND_Y + LANES[laneIndex].offset
+  const isBooster = Math.random() > 0.74
+
+  if (isBooster) {
+    return {
+      id: crypto.randomUUID(),
+      kind: 'booster',
+      laneIndex,
+      y: ENTITY_START_Y,
+      width: 46,
+      height: 46,
+      value: 120,
+    }
+  }
+
+  const variant = OBSTACLE_VARIANTS[Math.floor(Math.random() * OBSTACLE_VARIANTS.length)]
 
   return {
     id: crypto.randomUUID(),
-    x: GAME_WIDTH + 60,
-    y: flying ? laneGround - randomBetween(150, 205) : laneGround - height,
-    width,
-    height,
+    kind: 'obstacle',
     laneIndex,
-    color: COLORS[Math.floor(Math.random() * COLORS.length)],
-    type: flying ? 'drone' : 'block',
-    rotation: randomBetween(-6, 6),
+    y: ENTITY_START_Y,
+    width: variant.width,
+    height: variant.height + Math.min(score / 90, 24),
+    label: variant.label,
+    rotation: Math.random() * 8 - 4,
   }
 }
 
-function rectanglesOverlap(a, b) {
-  return (
-    a.x < b.x + b.width &&
-    a.x + a.width > b.x &&
-    a.y < b.y + b.height &&
-    a.y + a.height > b.y
-  )
+function verticalOverlap(a, b) {
+  return a.y < b.y + b.height && a.y + a.height > b.y
 }
 
 function useHighScore(score, gameState) {
@@ -68,50 +72,38 @@ function useHighScore(score, gameState) {
 
 function App() {
   const [gameState, setGameState] = useState('ready')
-  const [playerY, setPlayerY] = useState(GROUND_Y - PLAYER.height)
   const [laneIndex, setLaneIndex] = useState(1)
-  const [isSliding, setIsSliding] = useState(false)
-  const [obstacles, setObstacles] = useState([])
+  const [entities, setEntities] = useState([])
   const [score, setScore] = useState(0)
+  const [boosters, setBoosters] = useState(0)
   const [speedBoost, setSpeedBoost] = useState(1)
 
-  const velocityRef = useRef(0)
   const lastFrameRef = useRef(0)
-  const spawnTimerRef = useRef(950)
-  const slideTimerRef = useRef(null)
+  const spawnTimerRef = useRef(620)
   const activePointersRef = useRef(new Map())
   const gameStateRef = useRef(gameState)
   const scoreRef = useRef(score)
   const bestScore = useHighScore(score, gameState)
 
   const currentLane = LANES[laneIndex]
-  const playerHeight = isSliding ? 34 : PLAYER.height
-  const playerTop = (isSliding ? GROUND_Y - 34 : playerY) + currentLane.offset
-  const playerScale = currentLane.scale
-  const isGrounded = playerY >= GROUND_Y - PLAYER.height - 1
-
   const playerBox = useMemo(
     () => ({
-      x: PLAYER.x + 7,
-      y: playerTop + 6,
-      width: (PLAYER.width - 12) * playerScale,
-      height: (playerHeight - 9) * playerScale,
+      y: PLAYER.y + 8,
+      height: PLAYER.height - 14,
       laneIndex,
     }),
-    [laneIndex, playerHeight, playerScale, playerTop],
+    [laneIndex],
   )
 
   const resetGame = useCallback(() => {
-    velocityRef.current = 0
     lastFrameRef.current = 0
-    spawnTimerRef.current = 950
+    spawnTimerRef.current = 620
     scoreRef.current = 0
     activePointersRef.current.clear()
-    setPlayerY(GROUND_Y - PLAYER.height)
     setLaneIndex(1)
-    setIsSliding(false)
-    setObstacles([])
+    setEntities([])
     setScore(0)
+    setBoosters(0)
     setSpeedBoost(1)
     setGameState('playing')
   }, [])
@@ -121,30 +113,11 @@ function App() {
     setLaneIndex((currentIndex) => clampLane(currentIndex + direction))
   }, [])
 
-  const jump = useCallback(() => {
-    if (gameStateRef.current === 'ready' || gameStateRef.current === 'over') {
-      resetGame()
-      return
-    }
-
-    if (gameStateRef.current === 'playing' && isGrounded && !isSliding) {
-      velocityRef.current = JUMP_FORCE
-    }
-  }, [isGrounded, isSliding, resetGame])
-
-  const slide = useCallback(() => {
-    if (gameStateRef.current !== 'playing' || !isGrounded) return
-    setIsSliding(true)
-    window.clearTimeout(slideTimerRef.current)
-    slideTimerRef.current = window.setTimeout(() => setIsSliding(false), SLIDE_DURATION)
-  }, [isGrounded])
-
   const rememberPointer = useCallback((event) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return
 
     activePointersRef.current.set(event.pointerId, {
       handled: false,
-      startTime: performance.now(),
       startX: event.clientX,
       startY: event.clientY,
     })
@@ -158,48 +131,24 @@ function App() {
 
     const deltaX = event.clientX - pointer.startX
     const deltaY = event.clientY - pointer.startY
-    const horizontalSwipe = Math.abs(deltaX) > SWIPE_THRESHOLD && Math.abs(deltaX) > Math.abs(deltaY) * 1.15
-    const verticalSwipe = Math.abs(deltaY) > SWIPE_THRESHOLD && Math.abs(deltaY) > Math.abs(deltaX) * 1.15
+    const horizontalSwipe = Math.abs(deltaX) > SWIPE_THRESHOLD && Math.abs(deltaX) > Math.abs(deltaY) * 1.2
 
     if (horizontalSwipe) {
       changeLane(deltaX < 0 ? -1 : 1)
       pointer.handled = true
-      return
     }
-
-    if (verticalSwipe) {
-      if (deltaY < 0) jump()
-      if (deltaY > 0) slide()
-      pointer.handled = true
-    }
-  }, [changeLane, jump, slide])
+  }, [changeLane])
 
   const handlePointerEnd = useCallback((event) => {
-    const pointer = activePointersRef.current.get(event.pointerId)
-    if (!pointer) return
-
-    const deltaX = event.clientX - pointer.startX
-    const deltaY = event.clientY - pointer.startY
-    const elapsed = performance.now() - pointer.startTime
-    const isTap = Math.hypot(deltaX, deltaY) < TAP_THRESHOLD && elapsed < TAP_DURATION
-
-    if (!pointer.handled && isTap) {
-      jump()
-    }
-
     activePointersRef.current.delete(event.pointerId)
     event.currentTarget.releasePointerCapture?.(event.pointerId)
-  }, [jump])
+  }, [])
 
-  const triggerTouchAction = useCallback((action) => (event) => {
+  const triggerTouchAction = useCallback((direction) => (event) => {
     event.preventDefault()
     event.stopPropagation()
-
-    if (action === 'left') changeLane(-1)
-    if (action === 'right') changeLane(1)
-    if (action === 'jump') jump()
-    if (action === 'slide') slide()
-  }, [changeLane, jump, slide])
+    changeLane(direction)
+  }, [changeLane])
 
   useEffect(() => {
     gameStateRef.current = gameState
@@ -211,14 +160,9 @@ function App() {
 
   useEffect(() => {
     const handleKeyDown = (event) => {
-      if (['Space', 'ArrowUp', 'KeyW'].includes(event.code)) {
+      if (['Enter', 'Space'].includes(event.code) && gameStateRef.current !== 'playing') {
         event.preventDefault()
-        jump()
-      }
-
-      if (['ArrowDown', 'KeyS'].includes(event.code)) {
-        event.preventDefault()
-        slide()
+        resetGame()
       }
 
       if (['ArrowLeft', 'KeyA'].includes(event.code)) {
@@ -234,9 +178,7 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [changeLane, jump, slide])
-
-  useEffect(() => () => window.clearTimeout(slideTimerRef.current), [])
+  }, [changeLane, resetGame])
 
   useEffect(() => {
     let animationFrameId
@@ -248,7 +190,7 @@ function App() {
 
       if (gameStateRef.current === 'playing') {
         const nextScore = scoreRef.current + Math.round(delta * 2)
-        const nextBoost = 1 + Math.min(nextScore / 1400, 0.95)
+        const nextBoost = 1 + Math.min(nextScore / 1600, 0.9)
         const travel = OBSTACLE_SPEED * nextBoost * delta
 
         scoreRef.current = nextScore
@@ -257,38 +199,51 @@ function App() {
         setScore(nextScore)
         setSpeedBoost(nextBoost)
 
-        setPlayerY((currentY) => {
-          const nextVelocity = velocityRef.current + GRAVITY * delta
-          const nextY = Math.min(currentY + nextVelocity * delta, GROUND_Y - PLAYER.height)
-          velocityRef.current = nextY >= GROUND_Y - PLAYER.height ? 0 : nextVelocity
-          return nextY
-        })
-
-        setObstacles((currentObstacles) => {
-          let nextObstacles = currentObstacles
-            .map((obstacle) => ({ ...obstacle, x: obstacle.x - travel }))
-            .filter((obstacle) => obstacle.x + obstacle.width > -30)
+        setEntities((currentEntities) => {
+          let collectedBoosters = 0
+          let nextEntities = currentEntities
+            .map((entity) => ({ ...entity, y: entity.y + travel }))
+            .filter((entity) => entity.y < ENTITY_END_Y)
 
           if (spawnTimerRef.current <= 0) {
-            nextObstacles = [...nextObstacles, createObstacle(nextScore)]
-            spawnTimerRef.current = SPAWN_MIN + Math.random() * SPAWN_RANDOM - Math.min(nextScore, 700) * 0.42
+            nextEntities = [...nextEntities, createEntity(nextScore)]
+            spawnTimerRef.current = SPAWN_MIN + Math.random() * SPAWN_RANDOM - Math.min(nextScore, 650) * 0.32
           }
 
-          const hasCollision = nextObstacles.some((obstacle) =>
-            obstacle.laneIndex === playerBox.laneIndex &&
-            rectanglesOverlap(playerBox, {
-              x: obstacle.x + 6,
-              y: obstacle.y + 5,
-              width: (obstacle.width - 12) * LANES[obstacle.laneIndex].scale,
-              height: (obstacle.height - 10) * LANES[obstacle.laneIndex].scale,
-            }),
-          )
+          const hasCollision = nextEntities.some((entity) => {
+            const sameLane = entity.laneIndex === playerBox.laneIndex
+            const touchingPlayer = sameLane && verticalOverlap(playerBox, {
+              y: entity.y + 5,
+              height: entity.height - 10,
+            })
+
+            if (touchingPlayer && entity.kind === 'booster') {
+              collectedBoosters += 1
+              scoreRef.current += entity.value
+              return false
+            }
+
+            return touchingPlayer && entity.kind === 'obstacle'
+          })
+
+          if (collectedBoosters) {
+            setBoosters((currentBoosters) => currentBoosters + collectedBoosters)
+            setScore(scoreRef.current)
+            nextEntities = nextEntities.filter((entity) => {
+              const sameLane = entity.laneIndex === playerBox.laneIndex
+              const touchingPlayer = sameLane && verticalOverlap(playerBox, {
+                y: entity.y + 5,
+                height: entity.height - 10,
+              })
+              return !(touchingPlayer && entity.kind === 'booster')
+            })
+          }
 
           if (hasCollision) {
             setGameState('over')
           }
 
-          return nextObstacles
+          return nextEntities
         })
       }
 
@@ -300,7 +255,7 @@ function App() {
   }, [playerBox])
 
   const distance = Math.floor(score / 10)
-  const difficulty = Math.min(100, Math.round((speedBoost - 1) * 105))
+  const difficulty = Math.min(100, Math.round((speedBoost - 1) * 112))
 
   return (
     <main className="shell">
@@ -319,7 +274,7 @@ function App() {
         <div
           className="game-stage"
           role="application"
-          aria-label="Terrain de jeu. Swipe gauche ou droite pour changer de voie, swipe haut pour sauter, swipe bas pour glisser."
+          aria-label="Terrain de jeu. Les obstacles descendent verticalement. Swipe gauche ou droite pour changer de voie."
           onPointerCancel={handlePointerEnd}
           onPointerDown={rememberPointer}
           onPointerMove={handlePointerMove}
@@ -332,58 +287,63 @@ function App() {
           <div className="stars" />
 
           <div className="runner-track">
-            <div className="lane-guide lane-guide-left" />
-            <div className="lane-guide lane-guide-center" />
-            <div className="lane-guide lane-guide-right" />
-            <div className="track-glow" />
-            <div className="speed-lines" style={{ animationDuration: `${1.1 / speedBoost}s` }} />
+            {LANES.map((lane) => (
+              <div className="lane-column" key={lane.label} style={{ left: `${lane.left}%` }} />
+            ))}
+            <div className="speed-lines" style={{ animationDuration: `${1 / speedBoost}s` }} />
+
+            {entities.map((entity) => (
+              <div
+                className={`entity entity-${entity.kind}`}
+                key={entity.id}
+                style={{
+                  height: entity.height,
+                  left: `${LANES[entity.laneIndex].left}%`,
+                  top: entity.y,
+                  transform: `translateX(-50%) rotate(${entity.rotation || 0}deg)`,
+                  width: entity.width,
+                }}
+                aria-label={entity.kind === 'booster' ? 'Booster bonus' : `Obstacle ${entity.label}`}
+              >
+                {entity.kind === 'booster' ? <span>+</span> : <span />}
+              </div>
+            ))}
+
             <div
-              className={`runner lane-${currentLane.label} ${isSliding ? 'is-sliding' : ''} ${!isGrounded ? 'is-jumping' : ''}`}
+              className="runner"
               style={{
-                transform: `translate3d(${PLAYER.x}px, ${playerTop}px, 0) scale(${playerScale})`,
-                zIndex: 5 + laneIndex,
+                left: `${currentLane.left}%`,
+                top: PLAYER.y,
+                transform: 'translateX(-50%)',
               }}
             >
               <span className="runner-core" />
               <span className="visor" />
               <span className="jet" />
             </div>
-
-            {obstacles.map((obstacle) => (
-              <div
-                className={`obstacle obstacle-${obstacle.type}`}
-                key={obstacle.id}
-                style={{
-                  '--accent': obstacle.color,
-                  height: obstacle.height,
-                  left: obstacle.x,
-                  top: obstacle.y,
-                  transform: `rotate(${obstacle.rotation}deg) scale(${LANES[obstacle.laneIndex].scale})`,
-                  width: obstacle.width,
-                  zIndex: 4 + obstacle.laneIndex,
-                }}
-              >
-                <span />
-              </div>
-            ))}
           </div>
 
           {gameState !== 'playing' && (
             <div className="overlay">
-              <p>{gameState === 'ready' ? 'Prêt pour la course ?' : 'Collision détectée'}</p>
-              <h2>{gameState === 'ready' ? 'Saute, glisse, change de voie.' : `Score final : ${score}`}</h2>
+              <p>{gameState === 'ready' ? 'Prêt pour la course ?' : 'Collision obstacle'}</p>
+              <h2>{gameState === 'ready' ? 'Évite les obstacles rouges, récupère les boosters verts.' : `Score final : ${score}`}</h2>
               <button type="button" onClick={resetGame}>
                 {gameState === 'ready' ? 'Démarrer' : 'Rejouer'}
               </button>
             </div>
           )}
 
+          <div className="legend" aria-hidden="true">
+            <span className="legend-obstacle">Obstacle</span>
+            <span className="legend-booster">Booster</span>
+          </div>
+
           <div className="touch-lane-controls" aria-label="Contrôles tactiles de voie">
-            <button type="button" onPointerDown={triggerTouchAction('left')} aria-label="Changer vers la voie de gauche">
+            <button type="button" onPointerDown={triggerTouchAction(-1)} aria-label="Changer vers la voie de gauche">
               ←
             </button>
-            <span>Voie {laneIndex + 1}/3</span>
-            <button type="button" onPointerDown={triggerTouchAction('right')} aria-label="Changer vers la voie de droite">
+            <span>Gauche / Droite</span>
+            <button type="button" onPointerDown={triggerTouchAction(1)} aria-label="Changer vers la voie de droite">
               →
             </button>
           </div>
@@ -395,8 +355,8 @@ function App() {
             <strong>{distance} m</strong>
           </article>
           <article>
-            <span>Vitesse</span>
-            <strong>x{speedBoost.toFixed(2)}</strong>
+            <span>Boosters</span>
+            <strong>{boosters}</strong>
           </article>
           <article>
             <span>Voie</span>
@@ -409,11 +369,9 @@ function App() {
         </div>
 
         <div className="controls">
-          <button type="button" onClick={jump}>Sauter</button>
-          <button type="button" onClick={slide}>Glisser</button>
           <button type="button" onClick={() => changeLane(-1)}>Gauche</button>
           <button type="button" onClick={() => changeLane(1)}>Droite</button>
-          <p><kbd>←</kbd>/<kbd>→</kbd> ou swipe horizontal pour changer de voie · <kbd>Espace</kbd>/<kbd>↑</kbd> pour sauter · <kbd>↓</kbd> pour glisser</p>
+          <p><kbd>←</kbd>/<kbd>→</kbd>, <kbd>A</kbd>/<kbd>D</kbd> ou swipe horizontal uniquement pour changer de voie.</p>
         </div>
       </section>
     </main>
