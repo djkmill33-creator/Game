@@ -6,9 +6,9 @@ const STAGE_HEIGHT = 520
 const PLAYER = { y: 382, width: 52, height: 66 }
 const ENTITY_START_Y = -120
 const ENTITY_END_Y = STAGE_HEIGHT + 120
-const OBSTACLE_SPEED = 4.8
-const SPAWN_MIN = 520
-const SPAWN_RANDOM = 460
+const BASE_OBSTACLE_SPEED = 4.8
+const BASE_SPAWN_MIN = 520
+const BASE_SPAWN_RANDOM = 460
 const SWIPE_THRESHOLD = 42
 const LANES = [
   { label: 'gauche', left: 27 },
@@ -20,6 +20,12 @@ const OBSTACLE_VARIANTS = [
   { width: 74, height: 54, label: 'barrière' },
   { width: 52, height: 92, label: 'tour' },
 ]
+const DIFFICULTIES = {
+  facile: { label: 'Facile', speed: 0.82, spawn: 1.28, score: 1 },
+  moyen: { label: 'Moyen', speed: 1, spawn: 1, score: 1.2 },
+  difficile: { label: 'Difficile', speed: 1.22, spawn: 0.82, score: 1.45 },
+  legende: { label: 'Légende', speed: 1.48, spawn: 0.66, score: 1.8 },
+}
 
 const clampLane = (laneIndex) => Math.max(0, Math.min(LANES.length - 1, laneIndex))
 
@@ -58,12 +64,12 @@ function verticalOverlap(a, b) {
 }
 
 function useHighScore(score, gameState) {
-  const [bestScore, setBestScore] = useState(() => Number(localStorage.getItem('neonDashBest') || 0))
+  const [bestScore, setBestScore] = useState(() => Number(localStorage.getItem('monJeuPlusBest') || 0))
 
   useEffect(() => {
     if (gameState === 'over' && score > bestScore) {
       setBestScore(score)
-      localStorage.setItem('neonDashBest', String(score))
+      localStorage.setItem('monJeuPlusBest', String(score))
     }
   }, [bestScore, gameState, score])
 
@@ -77,6 +83,7 @@ function App() {
   const [score, setScore] = useState(0)
   const [boosters, setBoosters] = useState(0)
   const [speedBoost, setSpeedBoost] = useState(1)
+  const [difficultyKey, setDifficultyKey] = useState('moyen')
 
   const lastFrameRef = useRef(0)
   const spawnTimerRef = useRef(620)
@@ -85,6 +92,7 @@ function App() {
   const scoreRef = useRef(score)
   const bestScore = useHighScore(score, gameState)
 
+  const difficulty = DIFFICULTIES[difficultyKey]
   const currentLane = LANES[laneIndex]
   const playerBox = useMemo(
     () => ({
@@ -97,7 +105,7 @@ function App() {
 
   const resetGame = useCallback(() => {
     lastFrameRef.current = 0
-    spawnTimerRef.current = 620
+    spawnTimerRef.current = BASE_SPAWN_MIN * difficulty.spawn
     scoreRef.current = 0
     activePointersRef.current.clear()
     setLaneIndex(1)
@@ -106,11 +114,16 @@ function App() {
     setBoosters(0)
     setSpeedBoost(1)
     setGameState('playing')
-  }, [])
+  }, [difficulty.spawn])
 
   const changeLane = useCallback((direction) => {
     if (gameStateRef.current !== 'playing') return
     setLaneIndex((currentIndex) => clampLane(currentIndex + direction))
+  }, [])
+
+  const selectDifficulty = useCallback((nextDifficultyKey) => {
+    if (gameStateRef.current === 'playing') return
+    setDifficultyKey(nextDifficultyKey)
   }, [])
 
   const rememberPointer = useCallback((event) => {
@@ -189,9 +202,9 @@ function App() {
       lastFrameRef.current = timestamp
 
       if (gameStateRef.current === 'playing') {
-        const nextScore = scoreRef.current + Math.round(delta * 2)
+        const nextScore = scoreRef.current + Math.round(delta * 2 * difficulty.score)
         const nextBoost = 1 + Math.min(nextScore / 1600, 0.9)
-        const travel = OBSTACLE_SPEED * nextBoost * delta
+        const travel = BASE_OBSTACLE_SPEED * difficulty.speed * nextBoost * delta
 
         scoreRef.current = nextScore
         spawnTimerRef.current -= 16.67 * delta * nextBoost
@@ -207,7 +220,7 @@ function App() {
 
           if (spawnTimerRef.current <= 0) {
             nextEntities = [...nextEntities, createEntity(nextScore)]
-            spawnTimerRef.current = SPAWN_MIN + Math.random() * SPAWN_RANDOM - Math.min(nextScore, 650) * 0.32
+            spawnTimerRef.current = (BASE_SPAWN_MIN + Math.random() * BASE_SPAWN_RANDOM - Math.min(nextScore, 650) * 0.32) * difficulty.spawn
           }
 
           const hasCollision = nextEntities.some((entity) => {
@@ -252,18 +265,16 @@ function App() {
 
     animationFrameId = requestAnimationFrame(update)
     return () => cancelAnimationFrame(animationFrameId)
-  }, [playerBox])
+  }, [difficulty.score, difficulty.spawn, difficulty.speed, playerBox])
 
   const distance = Math.floor(score / 10)
-  const difficulty = Math.min(100, Math.round((speedBoost - 1) * 112))
-
   return (
     <main className="shell">
-      <section className="hero-panel" aria-label="Jeu d'obstacles Neon Dash">
+      <section className="hero-panel" aria-label="Jeu d'obstacles mon jeu+">
         <div className="topbar">
           <div>
             <p className="eyebrow">Obstacle runner</p>
-            <h1>Neon Dash</h1>
+            <h1>mon jeu+</h1>
           </div>
           <div className="scores" aria-label="Scores">
             <span>Score <strong>{score}</strong></span>
@@ -326,12 +337,26 @@ function App() {
           {gameState !== 'playing' && (
             <div className="overlay">
               <p>{gameState === 'ready' ? 'Prêt pour la course ?' : 'Collision obstacle'}</p>
-              <h2>{gameState === 'ready' ? 'Évite les obstacles rouges, récupère les boosters verts.' : `Score final : ${score}`}</h2>
+              <h2>{gameState === 'ready' ? `Choisis un niveau puis évite les obstacles rouges.` : `Score final : ${score}`}</h2>
               <button type="button" onClick={resetGame}>
                 {gameState === 'ready' ? 'Démarrer' : 'Rejouer'}
               </button>
             </div>
           )}
+
+          <div className="difficulty-picker" aria-label="Niveau de difficulté">
+            {Object.entries(DIFFICULTIES).map(([key, option]) => (
+              <button
+                className={key === difficultyKey ? 'is-active' : ''}
+                disabled={gameState === 'playing'}
+                key={key}
+                onClick={() => selectDifficulty(key)}
+                type="button"
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
 
           <div className="legend" aria-hidden="true">
             <span className="legend-obstacle">Obstacle</span>
@@ -363,15 +388,15 @@ function App() {
             <strong>{currentLane.label}</strong>
           </article>
           <article>
-            <span>Difficulté</span>
-            <strong>{difficulty}%</strong>
+            <span>Niveau</span>
+            <strong>{difficulty.label}</strong>
           </article>
         </div>
 
         <div className="controls">
           <button type="button" onClick={() => changeLane(-1)}>Gauche</button>
           <button type="button" onClick={() => changeLane(1)}>Droite</button>
-          <p><kbd>←</kbd>/<kbd>→</kbd>, <kbd>A</kbd>/<kbd>D</kbd> ou swipe horizontal uniquement pour changer de voie.</p>
+          <p><kbd>←</kbd>/<kbd>→</kbd>, <kbd>A</kbd>/<kbd>D</kbd> ou swipe horizontal uniquement pour changer de voie · Niveau : {difficulty.label}.</p>
         </div>
       </section>
     </main>
