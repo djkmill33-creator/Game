@@ -1,0 +1,510 @@
+:root {
+  color: #f7fbff;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #070813;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+button {
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+
+.shell {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 28px;
+  background:
+    radial-gradient(circle at 18% 20%, rgba(0, 229, 255, 0.22), transparent 28%),
+    radial-gradient(circle at 84% 16%, rgba(255, 78, 205, 0.24), transparent 28%),
+    linear-gradient(135deg, #070813 0%, #11152d 48%, #080913 100%);
+}
+
+.hero-panel {
+  width: min(1120px, 100%);
+  padding: clamp(18px, 3vw, 32px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 34px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.04));
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(18px);
+}
+
+.topbar,
+.hud,
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  color: #71f6ff;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: clamp(2.1rem, 5vw, 4.8rem);
+  line-height: 0.9;
+  text-shadow: 0 0 30px rgba(0, 229, 255, 0.36);
+}
+
+.scores {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.scores span,
+.hud article {
+  min-width: 112px;
+  padding: 12px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  background: rgba(8, 11, 27, 0.62);
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 0.82rem;
+  text-transform: uppercase;
+}
+
+.scores strong,
+.hud strong {
+  display: block;
+  color: #fff;
+  font-size: 1.35rem;
+}
+
+.game-stage {
+  position: relative;
+  height: min(56vw, 520px);
+  min-height: 430px;
+  margin: 28px 0 20px;
+  overflow: hidden;
+  border: 1px solid rgba(113, 246, 255, 0.22);
+  border-radius: 28px;
+  background: linear-gradient(180deg, #101836 0%, #160e2d 56%, #0b0d18 100%);
+  box-shadow: inset 0 0 60px rgba(0, 229, 255, 0.08);
+  isolation: isolate;
+  touch-action: none;
+  user-select: none;
+}
+
+
+.aurora {
+  position: absolute;
+  width: 420px;
+  height: 420px;
+  border-radius: 999px;
+  filter: blur(34px);
+  opacity: 0.45;
+  mix-blend-mode: screen;
+}
+
+.aurora-one {
+  top: -210px;
+  left: 8%;
+  background: #00e5ff;
+  animation: float 7s ease-in-out infinite;
+}
+
+.aurora-two {
+  right: -80px;
+  bottom: 40px;
+  background: #ff4ecd;
+  animation: float 8s ease-in-out infinite reverse;
+}
+
+.stars,
+.stars::before,
+.stars::after {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(circle, rgba(255, 255, 255, 0.8) 1px, transparent 1px),
+    radial-gradient(circle, rgba(113, 246, 255, 0.9) 1px, transparent 1px);
+  background-position: 0 0, 28px 36px;
+  background-size: 84px 84px, 126px 126px;
+  content: "";
+  opacity: 0.26;
+}
+
+.city {
+  position: absolute;
+  right: 0;
+  bottom: 92px;
+  left: 0;
+  height: 145px;
+  opacity: 0.52;
+  clip-path: polygon(
+    0 100%, 0 62%, 5% 62%, 5% 32%, 10% 32%, 10% 72%, 17% 72%, 17% 48%, 22% 48%,
+    22% 20%, 28% 20%, 28% 68%, 36% 68%, 36% 38%, 43% 38%, 43% 76%, 51% 76%, 51% 28%,
+    58% 28%, 58% 65%, 67% 65%, 67% 43%, 73% 43%, 73% 14%, 80% 14%, 80% 70%, 88% 70%,
+    88% 36%, 94% 36%, 94% 58%, 100% 58%, 100% 100%
+  );
+}
+
+.city-back {
+  background: linear-gradient(180deg, rgba(80, 107, 255, 0.5), rgba(80, 107, 255, 0.08));
+  transform: translateY(-24px) scaleX(1.04);
+}
+
+.city-front {
+  background: linear-gradient(180deg, rgba(255, 78, 205, 0.45), rgba(0, 229, 255, 0.08));
+}
+
+.runner-track {
+  position: absolute;
+  inset: 0;
+}
+
+.lane-guide {
+  position: absolute;
+  right: -12%;
+  left: -12%;
+  height: 2px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, transparent, rgba(113, 246, 255, 0.34), rgba(255, 78, 205, 0.28), transparent);
+  box-shadow: 0 0 16px rgba(0, 229, 255, 0.22);
+  transform: perspective(170px) rotateX(52deg);
+  transform-origin: center;
+}
+
+.lane-guide-left {
+  bottom: 130px;
+}
+
+.lane-guide-center {
+  bottom: 76px;
+}
+
+.lane-guide-right {
+  bottom: 22px;
+}
+
+.track-glow {
+  position: absolute;
+  right: -8%;
+  bottom: 76px;
+  left: -8%;
+  height: 12px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, transparent, #00e5ff, #ff4ecd, transparent);
+  box-shadow: 0 0 30px rgba(0, 229, 255, 0.75);
+}
+
+.track-glow::after {
+  position: absolute;
+  inset: 12px 0 -50px;
+  background-image: linear-gradient(90deg, rgba(255, 255, 255, 0.16) 1px, transparent 1px);
+  background-size: 56px 100%;
+  content: "";
+  transform: perspective(140px) rotateX(46deg);
+  transform-origin: top;
+}
+
+.speed-lines {
+  position: absolute;
+  right: 0;
+  bottom: 88px;
+  left: 0;
+  height: 115px;
+  background-image: linear-gradient(90deg, transparent 0 82%, rgba(255, 255, 255, 0.18) 84%, transparent 88%);
+  background-size: 180px 100%;
+  animation: rush 1.1s linear infinite;
+  opacity: 0.42;
+}
+
+.runner {
+  position: absolute;
+  z-index: 5;
+  width: 48px;
+  height: 62px;
+  transform-origin: bottom center;
+  transition:
+    transform 210ms cubic-bezier(0.2, 0.9, 0.2, 1),
+    width 160ms ease,
+    height 160ms ease;
+  will-change: transform;
+}
+
+
+.runner-core {
+  position: absolute;
+  inset: 0;
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  border-radius: 16px 16px 10px 10px;
+  background: linear-gradient(155deg, #ffffff 0 12%, #71f6ff 13% 42%, #3761ff 43% 100%);
+  box-shadow: 0 0 24px rgba(0, 229, 255, 0.85);
+}
+
+.visor {
+  position: absolute;
+  top: 13px;
+  right: 7px;
+  width: 23px;
+  height: 10px;
+  border-radius: 10px;
+  background: #080913;
+  box-shadow: inset 0 0 0 2px rgba(113, 246, 255, 0.7);
+}
+
+.jet {
+  position: absolute;
+  bottom: 5px;
+  left: -21px;
+  width: 26px;
+  height: 12px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, transparent, #ffd166, #ff4ecd);
+  filter: blur(0.5px);
+  animation: pulse 250ms ease-in-out infinite alternate;
+}
+
+.runner.is-jumping .runner-core {
+  animation: jump-sheen 460ms ease;
+}
+
+.runner.is-sliding {
+  width: 70px;
+  height: 34px;
+}
+
+.runner.is-sliding .runner-core {
+  border-radius: 14px;
+}
+
+.runner.is-sliding .visor {
+  top: 9px;
+  right: 12px;
+}
+
+.obstacle {
+  position: absolute;
+  transform-origin: bottom center;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 70%, white 20%);
+  border-radius: 12px;
+  background: linear-gradient(155deg, color-mix(in srgb, var(--accent) 32%, #10142a), rgba(255, 255, 255, 0.06));
+  box-shadow: 0 0 20px color-mix(in srgb, var(--accent) 42%, transparent);
+}
+
+.obstacle span {
+  width: 42%;
+  height: 42%;
+  border-radius: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  opacity: 0.65;
+}
+
+.obstacle-drone {
+  border-radius: 999px 999px 14px 14px;
+  animation: hover 900ms ease-in-out infinite alternate;
+}
+
+.touch-lane-controls {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  left: 16px;
+  z-index: 9;
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.touch-lane-controls button {
+  width: 64px;
+  height: 64px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 22px;
+  background: linear-gradient(145deg, rgba(0, 229, 255, 0.72), rgba(155, 92, 255, 0.7));
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.28), 0 0 26px rgba(0, 229, 255, 0.3);
+  font-size: 2rem;
+  font-weight: 900;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.touch-lane-controls span {
+  padding: 8px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(8, 11, 27, 0.62);
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-content: center;
+  padding: 28px;
+  text-align: center;
+  background: radial-gradient(circle, rgba(8, 9, 19, 0.46), rgba(8, 9, 19, 0.82));
+  backdrop-filter: blur(5px);
+}
+
+.overlay p {
+  color: #71f6ff;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.overlay h2 {
+  margin: 12px 0 22px;
+  font-size: clamp(2rem, 5vw, 4.5rem);
+  max-width: 720px;
+}
+
+.overlay button,
+.controls button {
+  border-radius: 999px;
+  background: linear-gradient(135deg, #00e5ff, #9b5cff 55%, #ff4ecd);
+  box-shadow: 0 14px 34px rgba(155, 92, 255, 0.36);
+  font-weight: 900;
+  padding: 13px 22px;
+  touch-action: manipulation;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+
+.overlay button:hover,
+.controls button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 42px rgba(0, 229, 255, 0.34);
+}
+
+.hud {
+  flex-wrap: wrap;
+}
+
+.hud article {
+  flex: 1 1 150px;
+}
+
+.controls {
+  margin-top: 18px;
+  flex-wrap: wrap;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.controls p {
+  margin-left: auto;
+}
+
+kbd {
+  padding: 3px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+@keyframes rush {
+  to {
+    background-position: -180px 0;
+  }
+}
+
+@keyframes float {
+  50% {
+    transform: translate3d(30px, 20px, 0) scale(1.08);
+  }
+}
+
+@keyframes pulse {
+  to {
+    transform: scaleX(1.3);
+    opacity: 0.72;
+  }
+}
+
+@keyframes jump-sheen {
+  50% {
+    filter: brightness(1.24);
+    box-shadow: 0 0 34px rgba(0, 229, 255, 0.95);
+  }
+}
+
+@keyframes hover {
+  to {
+    translate: 0 -8px;
+  }
+}
+
+@media (max-width: 760px) {
+  .shell {
+    padding: 12px;
+  }
+
+  .hero-panel {
+    border-radius: 24px;
+  }
+
+  .topbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .scores {
+    justify-content: stretch;
+    width: 100%;
+  }
+
+  .scores span {
+    flex: 1;
+  }
+
+  .game-stage {
+    min-height: 390px;
+  }
+
+  .touch-lane-controls {
+    display: flex;
+  }
+
+  .controls p {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
