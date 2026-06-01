@@ -89,6 +89,7 @@ function App() {
   const spawnTimerRef = useRef(620)
   const activePointersRef = useRef(new Map())
   const gameStateRef = useRef(gameState)
+  const laneIndexRef = useRef(laneIndex)
   const scoreRef = useRef(score)
   const bestScore = useHighScore(score, gameState)
 
@@ -118,7 +119,18 @@ function App() {
 
   const changeLane = useCallback((direction) => {
     if (gameStateRef.current !== 'playing') return
-    setLaneIndex((currentIndex) => clampLane(currentIndex + direction))
+    setLaneIndex((currentIndex) => {
+      const nextIndex = clampLane(currentIndex + direction)
+      laneIndexRef.current = nextIndex
+      return nextIndex
+    })
+  }, [])
+
+  const moveToLane = useCallback((nextLaneIndex) => {
+    if (gameStateRef.current !== 'playing') return
+    const clampedIndex = clampLane(nextLaneIndex)
+    laneIndexRef.current = clampedIndex
+    setLaneIndex(clampedIndex)
   }, [])
 
   const selectDifficulty = useCallback((nextDifficultyKey) => {
@@ -140,17 +152,19 @@ function App() {
 
   const handlePointerMove = useCallback((event) => {
     const pointer = activePointersRef.current.get(event.pointerId)
-    if (!pointer || pointer.handled) return
+    if (!pointer) return
 
     const deltaX = event.clientX - pointer.startX
     const deltaY = event.clientY - pointer.startY
-    const horizontalSwipe = Math.abs(deltaX) > SWIPE_THRESHOLD && Math.abs(deltaX) > Math.abs(deltaY) * 1.2
+    const horizontalSlide = Math.abs(deltaX) > SWIPE_THRESHOLD && Math.abs(deltaX) > Math.abs(deltaY) * 1.2
 
-    if (horizontalSwipe) {
-      changeLane(deltaX < 0 ? -1 : 1)
+    if (horizontalSlide) {
+      moveToLane(laneIndexRef.current + (deltaX < 0 ? -1 : 1))
       pointer.handled = true
+      pointer.startX = event.clientX
+      pointer.startY = event.clientY
     }
-  }, [changeLane])
+  }, [moveToLane])
 
   const handlePointerEnd = useCallback((event) => {
     activePointersRef.current.delete(event.pointerId)
@@ -163,9 +177,17 @@ function App() {
     changeLane(direction)
   }, [changeLane])
 
+  const handleLaneSliderChange = useCallback((event) => {
+    moveToLane(Number(event.target.value))
+  }, [moveToLane])
+
   useEffect(() => {
     gameStateRef.current = gameState
   }, [gameState])
+
+  useEffect(() => {
+    laneIndexRef.current = laneIndex
+  }, [laneIndex])
 
   useEffect(() => {
     scoreRef.current = score
@@ -285,7 +307,7 @@ function App() {
         <div
           className="game-stage"
           role="application"
-          aria-label="Terrain de jeu. Les obstacles descendent verticalement. Swipe gauche ou droite pour changer de voie."
+          aria-label="Terrain de jeu. Les obstacles descendent verticalement. Swipe ou slide gauche-droite pour changer de voie."
           onPointerCancel={handlePointerEnd}
           onPointerDown={rememberPointer}
           onPointerMove={handlePointerMove}
@@ -367,7 +389,19 @@ function App() {
             <button type="button" onPointerDown={triggerTouchAction(-1)} aria-label="Changer vers la voie de gauche">
               ←
             </button>
-            <span>Gauche / Droite</span>
+            <label className="lane-slider" onPointerDown={(event) => event.stopPropagation()}>
+              <span>Slider</span>
+              <input
+                aria-label="Slider de voie gauche droite"
+                disabled={gameState !== 'playing'}
+                max={LANES.length - 1}
+                min="0"
+                onChange={handleLaneSliderChange}
+                step="1"
+                type="range"
+                value={laneIndex}
+              />
+            </label>
             <button type="button" onPointerDown={triggerTouchAction(1)} aria-label="Changer vers la voie de droite">
               →
             </button>
@@ -396,7 +430,7 @@ function App() {
         <div className="controls">
           <button type="button" onClick={() => changeLane(-1)}>Gauche</button>
           <button type="button" onClick={() => changeLane(1)}>Droite</button>
-          <p><kbd>←</kbd>/<kbd>→</kbd>, <kbd>A</kbd>/<kbd>D</kbd> ou swipe horizontal uniquement pour changer de voie · Niveau : {difficulty.label}.</p>
+          <p><kbd>←</kbd>/<kbd>→</kbd>, <kbd>A</kbd>/<kbd>D</kbd>, swipe ou slider horizontal pour changer de voie · Niveau : {difficulty.label}.</p>
         </div>
       </section>
     </main>
