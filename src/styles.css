@@ -103,6 +103,57 @@ h1 {
   font-size: 1.35rem;
 }
 
+.scores small {
+  display: block;
+  color: #71f6ff;
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+.player-row {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 18px;
+  flex-wrap: wrap;
+}
+
+.player-row label {
+  display: grid;
+  min-width: min(100%, 280px);
+  gap: 7px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.player-row input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid rgba(113, 246, 255, 0.26);
+  border-radius: 16px;
+  outline: none;
+  background: rgba(8, 11, 27, 0.68);
+  color: #fff;
+  font: inherit;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.player-row input:focus {
+  border-color: rgba(113, 246, 255, 0.78);
+  box-shadow: 0 0 22px rgba(0, 229, 255, 0.18);
+}
+
+.player-row p {
+  color: rgba(255, 255, 255, 0.64);
+  font-size: 0.82rem;
+}
+
 .game-stage {
   position: relative;
   height: min(56vw, 520px);
@@ -417,26 +468,6 @@ h1 {
 }
 
 
-.lane-slider {
-  display: grid;
-  min-width: 150px;
-  gap: 8px;
-  justify-items: center;
-  pointer-events: auto;
-  touch-action: none;
-}
-
-.lane-slider input {
-  width: min(34vw, 190px);
-  accent-color: #71f6ff;
-  cursor: grab;
-  touch-action: none;
-}
-
-.lane-slider input:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
 
 .touch-lane-controls span {
   padding: 8px 14px;
@@ -473,6 +504,18 @@ h1 {
   margin: 12px 0 22px;
   font-size: clamp(2rem, 5vw, 4.5rem);
   max-width: 720px;
+}
+
+.record-message {
+  display: block;
+  margin: -8px auto 18px;
+  width: fit-content;
+  padding: 9px 14px;
+  border: 1px solid rgba(37, 255, 154, 0.48);
+  border-radius: 999px;
+  background: rgba(37, 255, 154, 0.14);
+  color: #dfff72;
+  box-shadow: 0 0 24px rgba(37, 255, 154, 0.18);
 }
 
 .overlay button,

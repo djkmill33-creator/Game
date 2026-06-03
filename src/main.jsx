@@ -10,6 +10,9 @@ const BASE_OBSTACLE_SPEED = 4.8
 const BASE_SPAWN_MIN = 520
 const BASE_SPAWN_RANDOM = 460
 const SWIPE_THRESHOLD = 42
+const RECORD_API_URL = import.meta.env.VITE_RECORD_API_URL?.trim()
+const LOCAL_RECORD_KEY = 'monJeuPlusBestRecord'
+const PLAYER_NAME_KEY = 'monJeuPlusPlayerName'
 const LANES = [
   { label: 'gauche', left: 27 },
   { label: 'centre', left: 50 },
@@ -28,6 +31,7 @@ const DIFFICULTIES = {
 }
 
 const clampLane = (laneIndex) => Math.max(0, Math.min(LANES.length - 1, laneIndex))
+const sanitizePlayerName = (name) => name.trim().slice(0, 24) || 'Joueur anonyme'
 
 function createEntity(score) {
   const laneIndex = Math.floor(Math.random() * LANES.length)
@@ -63,17 +67,100 @@ function verticalOverlap(a, b) {
   return a.y < b.y + b.height && a.y + a.height > b.y
 }
 
-function useHighScore(score, gameState) {
-  const [bestScore, setBestScore] = useState(() => Number(localStorage.getItem('monJeuPlusBest') || 0))
+function normalizeRecord(record) {
+  return {
+    name: sanitizePlayerName(record?.name || 'Aucun joueur'),
+    score: Number(record?.score || 0),
+    difficulty: record?.difficulty || '—',
+    updatedAt: record?.updatedAt || null,
+  }
+}
+
+function readLocalRecord() {
+  try {
+    return normalizeRecord(JSON.parse(localStorage.getItem(LOCAL_RECORD_KEY) || '{}'))
+  } catch {
+    return normalizeRecord({})
+  }
+}
+
+function saveLocalRecord(record) {
+  localStorage.setItem(LOCAL_RECORD_KEY, JSON.stringify(normalizeRecord(record)))
+}
+
+function useSharedRecord(playerName) {
+  const [record, setRecord] = useState(readLocalRecord)
+  const [syncStatus, setSyncStatus] = useState(RECORD_API_URL ? 'Connexion au record partagé…' : 'Record local')
+  const recordRef = useRef(record)
 
   useEffect(() => {
-    if (gameState === 'over' && score > bestScore) {
-      setBestScore(score)
-      localStorage.setItem('monJeuPlusBest', String(score))
-    }
-  }, [bestScore, gameState, score])
+    recordRef.current = record
+  }, [record])
 
-  return bestScore
+  const applyRecord = useCallback((nextRecord) => {
+    const normalizedRecord = normalizeRecord(nextRecord)
+    recordRef.current = normalizedRecord
+    setRecord(normalizedRecord)
+    saveLocalRecord(normalizedRecord)
+  }, [])
+
+  const fetchSharedRecord = useCallback(async () => {
+    if (!RECORD_API_URL) return
+
+    try {
+      const response = await fetch(RECORD_API_URL)
+      if (!response.ok) throw new Error('Impossible de lire le record partagé')
+      const remoteRecord = await response.json()
+      applyRecord(remoteRecord)
+      setSyncStatus('Record partagé synchronisé')
+    } catch {
+      setSyncStatus('Hors ligne — record local affiché')
+    }
+  }, [applyRecord])
+
+  const submitRecord = useCallback(async (score, difficulty) => {
+    if (score <= recordRef.current.score) return false
+
+    const nextRecord = normalizeRecord({
+      difficulty,
+      name: sanitizePlayerName(playerName),
+      score,
+      updatedAt: new Date().toISOString(),
+    })
+
+    if (!RECORD_API_URL) {
+      applyRecord(nextRecord)
+      setSyncStatus('Nouveau record local')
+      return true
+    }
+
+    try {
+      const response = await fetch(RECORD_API_URL, {
+        body: JSON.stringify(nextRecord),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+      })
+      if (!response.ok) throw new Error('Impossible de publier le record')
+      const remoteRecord = await response.json()
+      applyRecord(remoteRecord.score ? remoteRecord : nextRecord)
+      setSyncStatus('Nouveau record partagé publié')
+      return true
+    } catch {
+      applyRecord(nextRecord)
+      setSyncStatus('Record gardé localement — API partagée indisponible')
+      return true
+    }
+  }, [applyRecord, playerName])
+
+  useEffect(() => {
+    fetchSharedRecord()
+    if (!RECORD_API_URL) return undefined
+
+    const syncInterval = window.setInterval(fetchSharedRecord, 10000)
+    return () => window.clearInterval(syncInterval)
+  }, [fetchSharedRecord])
+
+  return { record, submitRecord, syncStatus }
 }
 
 function App() {
@@ -84,14 +171,16 @@ function App() {
   const [boosters, setBoosters] = useState(0)
   const [speedBoost, setSpeedBoost] = useState(1)
   const [difficultyKey, setDifficultyKey] = useState('moyen')
+  const [playerName, setPlayerName] = useState(() => localStorage.getItem(PLAYER_NAME_KEY) || '')
+  const [recordMessage, setRecordMessage] = useState('')
 
   const lastFrameRef = useRef(0)
   const spawnTimerRef = useRef(620)
   const activePointersRef = useRef(new Map())
   const gameStateRef = useRef(gameState)
-  const laneIndexRef = useRef(laneIndex)
   const scoreRef = useRef(score)
-  const bestScore = useHighScore(score, gameState)
+  const recordSubmittedRef = useRef(false)
+  const { record: bestRecord, submitRecord, syncStatus } = useSharedRecord(playerName)
 
   const difficulty = DIFFICULTIES[difficultyKey]
   const currentLane = LANES[laneIndex]
@@ -108,12 +197,14 @@ function App() {
     lastFrameRef.current = 0
     spawnTimerRef.current = BASE_SPAWN_MIN * difficulty.spawn
     scoreRef.current = 0
+    recordSubmittedRef.current = false
     activePointersRef.current.clear()
     setLaneIndex(1)
     setEntities([])
     setScore(0)
     setBoosters(0)
     setSpeedBoost(1)
+    setRecordMessage('')
     setGameState('playing')
   }, [difficulty.spawn])
 
@@ -121,16 +212,8 @@ function App() {
     if (gameStateRef.current !== 'playing') return
     setLaneIndex((currentIndex) => {
       const nextIndex = clampLane(currentIndex + direction)
-      laneIndexRef.current = nextIndex
       return nextIndex
     })
-  }, [])
-
-  const moveToLane = useCallback((nextLaneIndex) => {
-    if (gameStateRef.current !== 'playing') return
-    const clampedIndex = clampLane(nextLaneIndex)
-    laneIndexRef.current = clampedIndex
-    setLaneIndex(clampedIndex)
   }, [])
 
   const selectDifficulty = useCallback((nextDifficultyKey) => {
@@ -152,19 +235,17 @@ function App() {
 
   const handlePointerMove = useCallback((event) => {
     const pointer = activePointersRef.current.get(event.pointerId)
-    if (!pointer) return
+    if (!pointer || pointer.handled) return
 
     const deltaX = event.clientX - pointer.startX
     const deltaY = event.clientY - pointer.startY
-    const horizontalSlide = Math.abs(deltaX) > SWIPE_THRESHOLD && Math.abs(deltaX) > Math.abs(deltaY) * 1.2
+    const horizontalSwipe = Math.abs(deltaX) > SWIPE_THRESHOLD && Math.abs(deltaX) > Math.abs(deltaY) * 1.2
 
-    if (horizontalSlide) {
-      moveToLane(laneIndexRef.current + (deltaX < 0 ? -1 : 1))
+    if (horizontalSwipe) {
+      changeLane(deltaX < 0 ? -1 : 1)
       pointer.handled = true
-      pointer.startX = event.clientX
-      pointer.startY = event.clientY
     }
-  }, [moveToLane])
+  }, [changeLane])
 
   const handlePointerEnd = useCallback((event) => {
     activePointersRef.current.delete(event.pointerId)
@@ -177,17 +258,15 @@ function App() {
     changeLane(direction)
   }, [changeLane])
 
-  const handleLaneSliderChange = useCallback((event) => {
-    moveToLane(Number(event.target.value))
-  }, [moveToLane])
+  const updatePlayerName = useCallback((event) => {
+    const nextName = event.target.value
+    setPlayerName(nextName)
+    localStorage.setItem(PLAYER_NAME_KEY, nextName)
+  }, [])
 
   useEffect(() => {
     gameStateRef.current = gameState
   }, [gameState])
-
-  useEffect(() => {
-    laneIndexRef.current = laneIndex
-  }, [laneIndex])
 
   useEffect(() => {
     scoreRef.current = score
@@ -289,6 +368,15 @@ function App() {
     return () => cancelAnimationFrame(animationFrameId)
   }, [difficulty.score, difficulty.spawn, difficulty.speed, playerBox])
 
+  useEffect(() => {
+    if (gameState !== 'over' || recordSubmittedRef.current) return
+
+    recordSubmittedRef.current = true
+    submitRecord(score, difficulty.label).then((isNewRecord) => {
+      setRecordMessage(isNewRecord ? `${sanitizePlayerName(playerName)} détient le nouveau record !` : '')
+    })
+  }, [difficulty.label, gameState, playerName, score, submitRecord])
+
   const distance = Math.floor(score / 10)
   return (
     <main className="shell">
@@ -300,14 +388,28 @@ function App() {
           </div>
           <div className="scores" aria-label="Scores">
             <span>Score <strong>{score}</strong></span>
-            <span>Record <strong>{bestScore}</strong></span>
+            <span>Record <strong>{bestRecord.score}</strong><small>{bestRecord.name}</small></span>
           </div>
+        </div>
+
+        <div className="player-row">
+          <label>
+            Nom du joueur
+            <input
+              maxLength="24"
+              onChange={updatePlayerName}
+              placeholder="Entre ton nom"
+              type="text"
+              value={playerName}
+            />
+          </label>
+          <p>{syncStatus}</p>
         </div>
 
         <div
           className="game-stage"
           role="application"
-          aria-label="Terrain de jeu. Les obstacles descendent verticalement. Swipe ou slide gauche-droite pour changer de voie."
+          aria-label="Terrain de jeu. Les obstacles descendent verticalement. Swipe gauche ou droite pour changer de voie."
           onPointerCancel={handlePointerEnd}
           onPointerDown={rememberPointer}
           onPointerMove={handlePointerMove}
@@ -360,6 +462,7 @@ function App() {
             <div className="overlay">
               <p>{gameState === 'ready' ? 'Prêt pour la course ?' : 'Collision obstacle'}</p>
               <h2>{gameState === 'ready' ? `Choisis un niveau puis évite les obstacles rouges.` : `Score final : ${score}`}</h2>
+              {recordMessage && <strong className="record-message">{recordMessage}</strong>}
               <button type="button" onClick={resetGame}>
                 {gameState === 'ready' ? 'Démarrer' : 'Rejouer'}
               </button>
@@ -389,19 +492,7 @@ function App() {
             <button type="button" onPointerDown={triggerTouchAction(-1)} aria-label="Changer vers la voie de gauche">
               ←
             </button>
-            <label className="lane-slider" onPointerDown={(event) => event.stopPropagation()}>
-              <span>Slider</span>
-              <input
-                aria-label="Slider de voie gauche droite"
-                disabled={gameState !== 'playing'}
-                max={LANES.length - 1}
-                min="0"
-                onChange={handleLaneSliderChange}
-                step="1"
-                type="range"
-                value={laneIndex}
-              />
-            </label>
+            <span>Gauche / Droite</span>
             <button type="button" onPointerDown={triggerTouchAction(1)} aria-label="Changer vers la voie de droite">
               →
             </button>
@@ -425,12 +516,16 @@ function App() {
             <span>Niveau</span>
             <strong>{difficulty.label}</strong>
           </article>
+          <article>
+            <span>Champion</span>
+            <strong>{bestRecord.name}</strong>
+          </article>
         </div>
 
         <div className="controls">
           <button type="button" onClick={() => changeLane(-1)}>Gauche</button>
           <button type="button" onClick={() => changeLane(1)}>Droite</button>
-          <p><kbd>←</kbd>/<kbd>→</kbd>, <kbd>A</kbd>/<kbd>D</kbd>, swipe ou slider horizontal pour changer de voie · Niveau : {difficulty.label}.</p>
+          <p><kbd>←</kbd>/<kbd>→</kbd>, <kbd>A</kbd>/<kbd>D</kbd> ou swipe horizontal pour changer de voie · Record : {bestRecord.name} ({bestRecord.score}).</p>
         </div>
       </section>
     </main>
