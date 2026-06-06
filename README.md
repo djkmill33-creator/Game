@@ -22,6 +22,51 @@ Le serveur écoute par défaut sur `http://0.0.0.0:8787`, sert le jeu construit 
 
 Tous les appareils qui ouvrent cette même URL partagent alors le même record.
 
+## Faire pointer tous les jeux vers la même API centrale
+
+### 1. Déployer l'API centrale une seule fois
+
+Sur le serveur qui gardera le record global :
+
+```bash
+npm run build
+RECORD_FILE=/chemin/persistant/record.json npm run start
+```
+
+Son endpoint central sera par exemple :
+
+```text
+https://records.example.com/api/record
+```
+
+### 2. Configurer chaque serveur de jeu avec la même URL centrale
+
+Sur chaque serveur qui héberge une copie du jeu, utilise la même variable :
+
+```bash
+CENTRAL_RECORD_API_URL=https://records.example.com/api/record npm run start
+```
+
+`server/record-api.js` génère alors automatiquement `/record-config.js`, et le frontend pointera vers cette API centrale. Ainsi, même si les jeux sont sur plusieurs serveurs, ils lisent et publient tous le même record.
+
+### 3. Alternative au build
+
+Tu peux aussi construire chaque frontend avec la même URL :
+
+```bash
+VITE_RECORD_API_URL=https://records.example.com/api/record npm run build
+```
+
+### 4. Alternative sans rebuild ni variable serveur
+
+Après le build, modifie `dist/record-config.js` ou `public/record-config.js` avant déploiement :
+
+```js
+window.MON_JEU_PLUS_RECORD_API_URL = 'https://records.example.com/api/record'
+```
+
+Cette option est pratique si tu copies le même build sur plusieurs serveurs : ils pointeront tous vers le même record central.
+
 ## Développement local
 
 Dans deux terminaux :
@@ -32,26 +77,6 @@ npm run dev
 ```
 
 Vite proxifie `/api` vers `http://127.0.0.1:8787`, donc l'application utilise automatiquement le record partagé local.
-
-## Plusieurs serveurs ou plusieurs domaines
-
-Déploie `server/record-api.js` une seule fois, par exemple sur `https://api.example.com`, puis configure chaque frontend pour utiliser cette même API centrale :
-
-### Option 1 — au build
-
-```bash
-VITE_RECORD_API_URL=https://api.example.com/api/record npm run build
-```
-
-### Option 2 — sans rebuild
-
-Après le build, modifie `dist/record-config.js` ou `public/record-config.js` avant déploiement :
-
-```js
-window.MON_JEU_PLUS_RECORD_API_URL = 'https://api.example.com/api/record'
-```
-
-Cette option est pratique si tu copies le même build sur plusieurs serveurs : ils pointeront tous vers le même record central.
 
 ## Déploiement et persistance
 

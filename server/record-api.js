@@ -8,6 +8,7 @@ const rootDir = path.resolve(__dirname, '..')
 const distDir = path.join(rootDir, 'dist')
 const recordFile = process.env.RECORD_FILE || path.join(rootDir, 'data', 'record.json')
 const port = Number(process.env.PORT || process.env.RECORD_API_PORT || 8787)
+const centralRecordApiUrl = (process.env.CENTRAL_RECORD_API_URL || process.env.VITE_RECORD_API_URL || '').trim()
 
 const defaultRecord = {
   difficulty: '—',
@@ -62,6 +63,11 @@ async function parseJsonBody(request) {
   for await (const chunk of request) chunks.push(chunk)
   if (!chunks.length) return {}
   return JSON.parse(Buffer.concat(chunks).toString('utf8'))
+}
+
+function sendRecordConfig(response) {
+  response.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8' })
+  response.end(`window.MON_JEU_PLUS_RECORD_API_URL = ${JSON.stringify(centralRecordApiUrl)};\n`)
 }
 
 function sendJson(response, statusCode, payload) {
@@ -139,10 +145,16 @@ const server = createServer(async (request, response) => {
     return
   }
 
+  if (url.pathname === '/record-config.js') {
+    sendRecordConfig(response)
+    return
+  }
+
   await serveStatic(request, response)
 })
 
 server.listen(port, '0.0.0.0', () => {
   console.log(`mon jeu+ server ready on http://0.0.0.0:${port}`)
   console.log(`Record API: http://0.0.0.0:${port}/api/record`)
+  console.log(centralRecordApiUrl ? `Frontend record target: ${centralRecordApiUrl}` : 'Frontend record target: same-origin /api/record')
 })
