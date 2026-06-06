@@ -10,7 +10,10 @@ const BASE_OBSTACLE_SPEED = 4.8
 const BASE_SPAWN_MIN = 520
 const BASE_SPAWN_RANDOM = 460
 const SWIPE_THRESHOLD = 42
-const RECORD_API_URL = import.meta.env.VITE_RECORD_API_URL?.trim() || '/api/record'
+const RUNTIME_RECORD_API_URL = window.MON_JEU_PLUS_RECORD_API_URL?.trim()
+const BUILD_RECORD_API_URL = import.meta.env.VITE_RECORD_API_URL?.trim()
+const RECORD_API_URL = RUNTIME_RECORD_API_URL || BUILD_RECORD_API_URL || '/api/record'
+const IS_SAME_ORIGIN_RECORD_API = RECORD_API_URL.startsWith('/')
 const LOCAL_RECORD_KEY = 'monJeuPlusBestRecord'
 const PLAYER_NAME_KEY = 'monJeuPlusPlayerName'
 const LANES = [
@@ -90,7 +93,11 @@ function saveLocalRecord(record) {
 
 function useSharedRecord(playerName) {
   const [record, setRecord] = useState(readLocalRecord)
-  const [syncStatus, setSyncStatus] = useState(RECORD_API_URL ? 'Connexion au record partagé…' : 'Record local')
+  const [syncStatus, setSyncStatus] = useState(
+    IS_SAME_ORIGIN_RECORD_API
+      ? 'Record partagé sur ce serveur'
+      : 'Connexion au record central…',
+  )
   const recordRef = useRef(record)
 
   useEffect(() => {
@@ -112,7 +119,7 @@ function useSharedRecord(playerName) {
       if (!response.ok) throw new Error('Impossible de lire le record partagé')
       const remoteRecord = await response.json()
       applyRecord(remoteRecord)
-      setSyncStatus('Record partagé synchronisé')
+      setSyncStatus(IS_SAME_ORIGIN_RECORD_API ? 'Record partagé sur ce serveur synchronisé' : 'Record central synchronisé')
     } catch {
       setSyncStatus('Hors ligne — record local affiché')
     }
@@ -143,7 +150,7 @@ function useSharedRecord(playerName) {
       if (!response.ok) throw new Error('Impossible de publier le record')
       const remoteRecord = await response.json()
       applyRecord(remoteRecord.score ? remoteRecord : nextRecord)
-      setSyncStatus('Nouveau record partagé publié')
+      setSyncStatus(IS_SAME_ORIGIN_RECORD_API ? 'Nouveau record publié sur ce serveur' : 'Nouveau record central publié')
       return true
     } catch {
       applyRecord(nextRecord)
