@@ -6,9 +6,9 @@ const STAGE_HEIGHT = 520
 const PLAYER = { y: 382, width: 52, height: 66 }
 const ENTITY_START_Y = -120
 const ENTITY_END_Y = STAGE_HEIGHT + 120
-const BASE_OBSTACLE_SPEED = 4.8
-const BASE_SPAWN_MIN = 520
-const BASE_SPAWN_RANDOM = 460
+const BASE_OBSTACLE_SPEED = 3.6
+const BASE_SPAWN_MIN = 780
+const BASE_SPAWN_RANDOM = 640
 const SWIPE_THRESHOLD = 42
 const RUNTIME_RECORD_API_URL = window.MON_JEU_PLUS_RECORD_API_URL?.trim()
 const BUILD_RECORD_API_URL = import.meta.env.VITE_RECORD_API_URL?.trim()
@@ -27,10 +27,10 @@ const OBSTACLE_VARIANTS = [
   { width: 52, height: 92, label: 'tour' },
 ]
 const DIFFICULTIES = {
-  facile: { label: 'Facile', speed: 0.82, spawn: 1.28, score: 1 },
-  moyen: { label: 'Moyen', speed: 1, spawn: 1, score: 1.2 },
-  difficile: { label: 'Difficile', speed: 1.22, spawn: 0.82, score: 1.45 },
-  legende: { label: 'Légende', speed: 1.48, spawn: 0.66, score: 1.8 },
+  facile: { label: 'Facile', speed: 0.68, spawn: 1.55, score: 1 },
+  moyen: { label: 'Moyen', speed: 0.82, spawn: 1.3, score: 1.1 },
+  difficile: { label: 'Difficile', speed: 1, spawn: 1.08, score: 1.25 },
+  legende: { label: 'Légende', speed: 1.18, spawn: 0.9, score: 1.45 },
 }
 
 const clampLane = (laneIndex) => Math.max(0, Math.min(LANES.length - 1, laneIndex))
@@ -38,7 +38,7 @@ const sanitizePlayerName = (name) => name.trim().slice(0, 24) || 'Joueur anonyme
 
 function createEntity(score) {
   const laneIndex = Math.floor(Math.random() * LANES.length)
-  const isBooster = Math.random() > 0.74
+  const isBooster = Math.random() > 0.68
 
   if (isBooster) {
     return {
@@ -60,7 +60,7 @@ function createEntity(score) {
     laneIndex,
     y: ENTITY_START_Y,
     width: variant.width,
-    height: variant.height + Math.min(score / 90, 24),
+    height: variant.height + Math.min(score / 160, 14),
     label: variant.label,
     rotation: Math.random() * 8 - 4,
   }
@@ -177,7 +177,7 @@ function App() {
   const [score, setScore] = useState(0)
   const [boosters, setBoosters] = useState(0)
   const [speedBoost, setSpeedBoost] = useState(1)
-  const [difficultyKey, setDifficultyKey] = useState('moyen')
+  const [difficultyKey, setDifficultyKey] = useState('facile')
   const [playerName, setPlayerName] = useState(() => localStorage.getItem(PLAYER_NAME_KEY) || '')
   const [recordMessage, setRecordMessage] = useState('')
 
@@ -311,7 +311,7 @@ function App() {
 
       if (gameStateRef.current === 'playing') {
         const nextScore = scoreRef.current + Math.round(delta * 2 * difficulty.score)
-        const nextBoost = 1 + Math.min(nextScore / 1600, 0.9)
+        const nextBoost = 1 + Math.min(nextScore / 2600, 0.55)
         const travel = BASE_OBSTACLE_SPEED * difficulty.speed * nextBoost * delta
 
         scoreRef.current = nextScore
@@ -328,7 +328,7 @@ function App() {
 
           if (spawnTimerRef.current <= 0) {
             nextEntities = [...nextEntities, createEntity(nextScore)]
-            spawnTimerRef.current = (BASE_SPAWN_MIN + Math.random() * BASE_SPAWN_RANDOM - Math.min(nextScore, 650) * 0.32) * difficulty.spawn
+            spawnTimerRef.current = (BASE_SPAWN_MIN + Math.random() * BASE_SPAWN_RANDOM - Math.min(nextScore, 650) * 0.16) * difficulty.spawn
           }
 
           const hasCollision = nextEntities.some((entity) => {
